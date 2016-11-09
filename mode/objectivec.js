@@ -152,10 +152,10 @@ var c_cppHighlightRules = function() {
                 regex : cFunctions
             }, {
                 token : keywordMapper,
-                regex : "[a-zA-Z_$][a-zA-Z0-9_$]*"
+                regex : "[a-zA-Z_$][a-zA-Z0-9_$]*\\b"
             }, {
                 token : "keyword.operator",
-                regex : /--|\+\+|<<=|>>=|>>>=|<>|&&|\|\||\?:|[*%\/+\-&\^|~!<>=]=?/
+                regex : "!|\\$|%|&|\\*|\\-\\-|\\-|\\+\\+|\\+|~|==|=|!=|<=|>=|<<=|>>=|>>>=|<>|<|>|!|&&|\\|\\||\\?\\:|\\*=|%=|\\+=|\\-=|&=|\\^=|\\b(?:in|new|delete|typeof|void)"
             }, {
               token : "punctuation.operator",
               regex : "\\?|\\:|\\,|\\;|\\."

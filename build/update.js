@@ -25,8 +25,8 @@ var aceTag = 'v1.2.3';
 
   +function cloneFreshAndRemoveUnneeded() {
     rm('-rf', buildroot)
-    exec('git clone git://github.com/datacamp/ace-builds.git ' + buildroot);
-    exec('(cd ' + buildroot + ' && git pull && git checkout master)');
+    exec('git clone -b master-react git://github.com/datacamp/ace-builds.git ' + buildroot);
+    exec('(cd ' + buildroot + ' && git pull && git checkout master-react)');
 
     [ 'demo', 'kitchen-sink', 'src-min-noconflict', 'src-min', 'src', 'textarea' ]
       .forEach(function (dir) { rm('-rf', path.join(buildroot, dir)) })

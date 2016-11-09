@@ -1138,15 +1138,12 @@ var AcePopup = function(parentNode) {
         var renderer = this.renderer;
         var maxH = renderer.$maxLines * lineHeight * 1.4;
         var top = pos.top + this.$borderSize;
-        var allowTopdown = top > screenHeight / 2 && !topdownOnly;
-        if (allowTopdown && top + lineHeight + maxH > screenHeight) {
-            renderer.$maxPixelHeight = top - 2 * this.$borderSize;
+        if (top + maxH > screenHeight - lineHeight && !topdownOnly) {
             el.style.top = "";
             el.style.bottom = screenHeight - top + "px";
             popup.isTopdown = false;
         } else {
             top += lineHeight;
-            renderer.$maxPixelHeight = screenHeight - top - 0.2 * lineHeight;
             el.style.top = top + "px";
             el.style.bottom = "";
             popup.isTopdown = true;
