@@ -1545,17 +1545,22 @@ var Autocomplete = function() {
     };
 
     this.updateCompletions = function(keepPopupPosition) {
-        if (this.inCompletionFetching) { //before filtering or refetching completions
-            this.changeTimer.schedule(50);
-            return;
-        }
-
-        if (keepPopupPosition && this.base && this.completions) {
+         var updateFilter = function() {
             var pos = this.editor.getCursorPosition();
             var prefix = this.editor.session.getTextRange({start: this.base, end: pos});
             if (prefix == this.completions.filterText)
                 return;
             this.completions.setFilter(prefix);
+        }.bind(this);
+
+        if (this.inCompletionFetching) { //before filtering or refetching completions
+            updateFilter();
+            this.changeTimer.schedule(50);
+            return;
+        }
+
+        if (keepPopupPosition && this.base && this.completions) {
+            updateFilter();
             if (!this.completions.filtered.length)
                 return this.detach();
             if (this.completions.filtered.length == 1
