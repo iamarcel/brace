@@ -1,6 +1,6 @@
 {
   "name": "brace",
-  "version": "0.10.0",
+  "version": "0.10.0-dc",
   "description": "browserify compatible version of the ace editor.",
   "main": "index.js",
   "typings": "index.d.ts",
@@ -10,9 +10,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/thlorenz/brace.git"
+    "url": "git://github.com/datacamp/brace.git"
   },
-  "homepage": "https://github.com/thlorenz/brace",
+  "homepage": "https://github.com/datacamp/brace",
   "dependencies": {
     "w3c-blob": "0.0.1"
   },

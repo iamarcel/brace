@@ -77,7 +77,7 @@ oop.inherits(TexHighlightRules, TextHighlightRules);
 exports.TexHighlightRules = TexHighlightRules;
 });
 
-ace.define("ace/mode/r_highlight_rules",["require","exports","module","ace/lib/oop","ace/lib/lang","ace/mode/text_highlight_rules","ace/mode/tex_highlight_rules"], function(acequire, exports, module)
+ace.define("ace/mode/r_console_highlight_rules",["require","exports","module","ace/lib/oop","ace/lib/lang","ace/mode/text_highlight_rules","ace/mode/tex_highlight_rules"], function(acequire, exports, module)
 {
 
    var oop = acequire("../lib/oop");
@@ -85,7 +85,7 @@ ace.define("ace/mode/r_highlight_rules",["require","exports","module","ace/lib/o
    var TextHighlightRules = acequire("./text_highlight_rules").TextHighlightRules;
    var TexHighlightRules = acequire("./tex_highlight_rules").TexHighlightRules;
 
-   var RHighlightRules = function()
+   var RConsoleHighlightRules = function()
    {
 
       var keywords = lang.arrayToMap(
@@ -100,6 +100,16 @@ ace.define("ace/mode/r_highlight_rules",["require","exports","module","ace/lib/o
 
       this.$rules = {
          "start" : [
+            {
+               token: "error",
+               regex: "^(Error|unexpected|DataCamp encountered the following error).*",
+               next : "error",
+            },
+            {
+               token: "output",
+               regex: "^((?!(Error|unexpected|>|\\.{3})\\s).*)",
+               next : "ouput",
+            },
             {
                token : "comment.sectionhead",
                regex : "#+(?!').*(?:----|====|####)\\s*$"
@@ -203,6 +213,33 @@ ace.define("ace/mode/r_highlight_rules",["require","exports","module","ace/lib/o
                regex : '.+'
             }
          ],
+         "error" : [
+            {
+               token : "keyword.operator",
+               regex : "^> ",
+               next : "start"
+            },
+            {
+               token : "identifier",
+               regex : ".*\\[y\\|n\\].*",
+               next : "start"
+            },
+            {
+               token : "error",
+               regex : '.+'
+            }
+         ],
+         "ouput" : [
+            {
+               token : "text",
+               regex : "^> ",
+               next : "start"
+            },
+            {
+               token : "output",
+               regex : '.+'
+            }
+         ]
       };
 
       var rdRules = new TexHighlightRules("comment").getRules();
@@ -230,9 +267,9 @@ ace.define("ace/mode/r_highlight_rules",["require","exports","module","ace/lib/o
       });
    };
 
-   oop.inherits(RHighlightRules, TextHighlightRules);
+   oop.inherits(RConsoleHighlightRules, TextHighlightRules);
 
-   exports.RHighlightRules = RHighlightRules;
+   exports.RConsoleHighlightRules = RConsoleHighlightRules;
 });
 
 ace.define("ace/mode/matching_brace_outdent",["require","exports","module","ace/range"], function(acequire, exports, module) {
@@ -415,20 +452,21 @@ oop.inherits(FoldMode, BaseFoldMode);
 
 });
 
-ace.define("ace/mode/r",["require","exports","module","ace/range","ace/lib/oop","ace/mode/text","ace/mode/text_highlight_rules","ace/mode/r_highlight_rules","ace/mode/matching_brace_outdent","ace/mode/behaviour/cstyle","ace/mode/folding/cstyle","ace/unicode"], function(acequire, exports, module) {
+ace.define("ace/mode/r_console",["require","exports","module","ace/range","ace/lib/oop","ace/mode/text","ace/mode/text_highlight_rules","ace/mode/r_console_highlight_rules","ace/mode/matching_brace_outdent","ace/mode/behaviour/cstyle","ace/mode/folding/cstyle","ace/unicode"], function(acequire, exports, module) {
    "use strict";
 
    var Range = acequire("../range").Range;
    var oop = acequire("../lib/oop");
    var TextMode = acequire("./text").Mode;
    var TextHighlightRules = acequire("./text_highlight_rules").TextHighlightRules;
-   var RHighlightRules = acequire("./r_highlight_rules").RHighlightRules;
+   var RHighlightRules = acequire("./r_console_highlight_rules").RConsoleHighlightRules;
    var MatchingBraceOutdent = acequire("./matching_brace_outdent").MatchingBraceOutdent;
    var CstyleBehaviour = acequire("./behaviour/cstyle").CstyleBehaviour;
    var CStyleFoldMode = acequire("./folding/cstyle").FoldMode;
    var unicode = acequire("../unicode");
 
-   var Mode = function(){
+   var Mode = function()
+   {
       this.HighlightRules = RHighlightRules;
       this.$outdent = new MatchingBraceOutdent();
       this.$behaviour = new CstyleBehaviour();
@@ -439,7 +477,7 @@ ace.define("ace/mode/r",["require","exports","module","ace/range","ace/lib/oop",
    (function()
    {
       this.lineCommentStart = "#";
-       this.$id = "ace/mode/r";
+       this.$id = "ace/mode/r-console";
    }).call(Mode.prototype);
    exports.Mode = Mode;
 });
