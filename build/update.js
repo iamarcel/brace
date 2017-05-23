@@ -20,13 +20,13 @@ var workersrcdir  =  path.join(braceroot, 'workersrc');
 var workerdir     =  path.join(braceroot, 'worker');
 var buildroot     =  path.join(__dirname, 'ace-build');
 
-var aceTag = 'v1.2.6';
+var aceTag = 'v1.2.6-dc';
 
 +function updateCleanAndPutInOrder() {
 
   +function cloneFreshAndRemoveUnneeded() {
     rm('-rf', buildroot)
-    exec('git clone git://github.com/ajaxorg/ace-builds.git ' + buildroot);
+    exec('git clone git://github.com/datacamp/ace-builds.git ' + buildroot);
     exec('(cd ' + buildroot + ' && git pull && git checkout ' + aceTag + ')');
 
     [ 'demo', 'kitchen-sink', 'src-min', 'src', 'textarea' ]
