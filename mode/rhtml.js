@@ -2629,7 +2629,7 @@ ace.define("ace/mode/r_highlight_rules",["require","exports","module","ace/lib/o
                token : "string",
                regex : '.+'
             }
-         ]
+         ],
       };
 
       var rdRules = new TexHighlightRules("comment").getRules();
