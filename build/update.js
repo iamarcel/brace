@@ -20,7 +20,7 @@ var workersrcdir  =  path.join(braceroot, 'workersrc');
 var workerdir     =  path.join(braceroot, 'worker');
 var buildroot     =  path.join(__dirname, 'ace-build');
 
-var aceTag = 'v1.2.7-dc';
+var aceTag = 'v1.2.8-dc';
 
 +function updateCleanAndPutInOrder() {
 

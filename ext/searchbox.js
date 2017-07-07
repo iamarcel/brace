@@ -184,7 +184,7 @@ var SearchBox = function(editor, range, showReplaceForm) {
 (function() {
     this.setEditor = function(editor) {
         editor.searchBox = this;
-        editor.renderer.scroller.appendChild(this.element);
+        editor.container.appendChild(this.element);
         this.editor = editor;
     };
 

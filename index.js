@@ -1923,15 +1923,19 @@ var TextInput = function(parentNode, host) {
     var text = dom.createElement("textarea");
     text.className = "ace_text-input";
 
+    if (useragent.isTouchPad)
+        text.setAttribute("x-palm-disable-auto-cap", true);
+
     text.setAttribute("wrap", "off");
     text.setAttribute("autocorrect", "off");
     text.setAttribute("autocapitalize", "off");
     text.setAttribute("spellcheck", false);
 
     text.style.opacity = "0";
+    if (useragent.isOldIE) text.style.top = "-1000px";
     parentNode.insertBefore(text, parentNode.firstChild);
 
-    var PLACEHOLDER = "\u2028\u2028";
+    var PLACEHOLDER = "\x01\x01";
 
     var copied = false;
     var pasted = false;
@@ -2019,6 +2023,54 @@ var TextInput = function(parentNode, host) {
     var isAllSelected = function(text) {
         return text.selectionStart === 0 && text.selectionEnd === text.value.length;
     };
+    if (!text.setSelectionRange && text.createTextRange) {
+        text.setSelectionRange = function(selectionStart, selectionEnd) {
+            var range = this.createTextRange();
+            range.collapse(true);
+            range.moveStart('character', selectionStart);
+            range.moveEnd('character', selectionEnd);
+            range.select();
+        };
+        isAllSelected = function(text) {
+            try {
+                var range = text.ownerDocument.selection.createRange();
+            }catch(e) {}
+            if (!range || range.parentElement() != text) return false;
+                return range.text == text.value;
+        }
+    }
+    if (useragent.isOldIE) {
+        var inPropertyChange = false;
+        var onPropertyChange = function(e){
+            if (inPropertyChange)
+                return;
+            var data = text.value;
+            if (inComposition || !data || data == PLACEHOLDER)
+                return;
+            if (e && data == PLACEHOLDER[0])
+                return syncProperty.schedule();
+
+            sendText(data);
+            inPropertyChange = true;
+            resetValue();
+            inPropertyChange = false;
+        };
+        var syncProperty = lang.delayedCall(onPropertyChange);
+        event.addListener(text, "propertychange", onPropertyChange);
+
+        var keytable = { 13:1, 27:1 };
+        event.addListener(text, "keyup", function (e) {
+            if (inComposition && (!text.value || keytable[e.keyCode]))
+                setTimeout(onCompositionEnd, 0);
+            if ((text.value.charCodeAt(0)||0) < 129) {
+                return syncProperty.call();
+            }
+            inComposition ? onCompositionUpdate() : onCompositionStart();
+        });
+        event.addListener(text, "keydown", function (e) {
+            syncProperty.schedule(50);
+        });
+    }
 
     var onSelect = function(e) {
         if (copied) {
@@ -2145,7 +2197,7 @@ var TextInput = function(parentNode, host) {
     event.addListener(text, "cut", onCut);
     event.addListener(text, "copy", onCopy);
     event.addListener(text, "paste", onPaste);
-    if (!('oncut' in text) || !('oncopy' in text) || !('onpaste' in text)) {
+    if (!('oncut' in text) || !('oncopy' in text) || !('onpaste' in text)){
         event.addListener(parentNode, "keydown", function(e) {
             if ((useragent.isMac && !e.metaKey) || !e.ctrlKey)
                 return;
@@ -2231,11 +2283,7 @@ var TextInput = function(parentNode, host) {
         if (e.type == "compositionend" && c.range) {
             host.selection.setRange(c.range);
         }
-        var needsOnInput =
-            (!!useragent.isChrome && useragent.isChrome >= 53) ||
-            (!!useragent.isWebKit && useragent.isWebKit >= 603);
-
-        if (needsOnInput) {
+        if (useragent.isChrome && useragent.isChrome >= 53) {
           onInput();
         }
     };
@@ -2269,6 +2317,8 @@ var TextInput = function(parentNode, host) {
     };
     
     this.moveToMouse = function(e, bringToFront) {
+        if (!bringToFront && useragent.isOldIE)
+            return;
         if (!tempStyle)
             tempStyle = text.style.cssText;
         text.style.cssText = (bringToFront ? "z-index:100000;" : "")
@@ -2293,7 +2343,7 @@ var TextInput = function(parentNode, host) {
             host.renderer.$keepTextAreaAtCursor = null;
 
         clearTimeout(closeTimeout);
-        if (useragent.isWin)
+        if (useragent.isWin && !useragent.isOldIE)
             event.capture(host.container, move, onContextMenuClose);
     };
 
@@ -2310,7 +2360,7 @@ var TextInput = function(parentNode, host) {
                 host.renderer.$keepTextAreaAtCursor = true;
                 host.renderer.$moveTextAreaToCursor();
             }
-        }, 0);
+        }, useragent.isOldIE ? 200 : 0);
     }
 
     var onContextMenu = function(e) {
@@ -2376,12 +2426,9 @@ function DefaultHandlers(mouseHandler) {
             if (selectionEmpty || button == 1)
                 editor.selection.moveToPosition(pos);
             editor.$blockScrolling--;
-            if (button == 2) {
+            if (button == 2)
                 editor.textInput.onContextMenu(ev.domEvent);
-                if (!useragent.isMozilla)
-                    ev.preventDefault();
-            }
-            return;
+            return; // stopping event here breaks contextmenu on ff mac
         }
 
         this.mousedownEvent.time = Date.now();
@@ -2648,13 +2695,6 @@ function Tooltip (parentNode) {
     };
     this.getWidth = function() {
         return this.getElement().offsetWidth;
-    };
-    
-    this.destroy = function() {
-        this.isOpen = false;
-        if (this.$element && this.$element.parentNode) {
-            this.$element.parentNode.removeChild(this.$element);
-        }
     };
 
 }).call(Tooltip.prototype);
@@ -4548,16 +4588,6 @@ var Selection = function(session) {
     this.moveCursorDown = function() {
         this.moveCursorBy(1, 0);
     };
-    this.wouldMoveIntoSoftTab = function(cursor, tabSize, direction) {
-        var start = cursor.column;
-        var end = cursor.column + tabSize;
-
-        if (direction < 0) {
-            start = cursor.column - tabSize;
-            end = cursor.column;
-        }
-        return this.session.isTabStop(cursor) && this.doc.getLine(cursor.row).slice(start, end).split(" ").length-1 == tabSize
-    }
     this.moveCursorLeft = function() {
         var cursor = this.lead.getPosition(),
             fold;
@@ -4571,11 +4601,10 @@ var Selection = function(session) {
         }
         else {
             var tabSize = this.session.getTabSize();
-            if (this.wouldMoveIntoSoftTab(cursor, tabSize, -1) && !this.session.getNavigateWithinSoftTabs()) {
+            if (this.session.isTabStop(cursor) && this.doc.getLine(cursor.row).slice(cursor.column-tabSize, cursor.column).split(" ").length-1 == tabSize)
                 this.moveCursorBy(0, -tabSize);
-            } else {
+            else
                 this.moveCursorBy(0, -1);
-            }
         }
     };
     this.moveCursorRight = function() {
@@ -4592,11 +4621,10 @@ var Selection = function(session) {
         else {
             var tabSize = this.session.getTabSize();
             var cursor = this.lead;
-            if (this.wouldMoveIntoSoftTab(cursor, tabSize, 1) && !this.session.getNavigateWithinSoftTabs()) {
+            if (this.session.isTabStop(cursor) && this.doc.getLine(cursor.row).slice(cursor.column, cursor.column+tabSize).split(" ").length-1 == tabSize)
                 this.moveCursorBy(0, tabSize);
-            } else {
+            else
                 this.moveCursorBy(0, 1);
-            }
         }
     };
     this.moveCursorLineStart = function() {
@@ -5164,7 +5192,7 @@ var Tokenizer = function(rules) {
                 rule = state[mapping[i]];
 
                 if (rule.onMatch)
-                    type = rule.onMatch(value, currentState, stack, line);
+                    type = rule.onMatch(value, currentState, stack);
                 else
                     type = rule.token;
 
@@ -5641,7 +5669,7 @@ var getWrapped = function(selection, selected, opening, closing) {
     };
 };
 
-var CstyleBehaviour = function(options) {
+var CstyleBehaviour = function() {
     this.add("braces", "insertion", function(state, action, editor, session, text) {
         var cursor = editor.getCursorPosition();
         var line = session.doc.getLine(cursor.row);
@@ -5652,7 +5680,7 @@ var CstyleBehaviour = function(options) {
             if (selected !== "" && selected !== "{" && editor.getWrapBehavioursEnabled()) {
                 return getWrapped(selection, selected, '{', '}');
             } else if (CstyleBehaviour.isSaneInsertion(editor, session)) {
-                if (/[\]\}\)]/.test(line[cursor.column]) || editor.inMultiSelectMode || options && options.braces) {
+                if (/[\]\}\)]/.test(line[cursor.column]) || editor.inMultiSelectMode) {
                     CstyleBehaviour.recordAutoInsert(editor, session, "}");
                     return {
                         text: '{}',
@@ -6949,9 +6977,6 @@ var BackgroundTokenizer = function(tokenizer, editor) {
         }
         self.currentLine = currentLine;
         
-        if (endLine == -1)
-            endLine = currentLine;
-        
         if (startLine <= endLine)
             self.fireUpdateEvent(startLine, endLine);
     };
@@ -8126,13 +8151,9 @@ function Folding() {
     this.getCommentFoldRange = function(row, column, dir) {
         var iterator = new TokenIterator(this, row, column);
         var token = iterator.getCurrentToken();
-        var type = token.type;
-        if (token && /^comment|string/.test(type)) {
-            type = type.match(/comment|string/)[0];
-            if (type == "comment")
-                type += "|doc-start";
-            var re = new RegExp(type);
+        if (token && /^comment|string/.test(token.type)) {
             var range = new Range();
+            var re = new RegExp(token.type.replace(/\..*/, "\\."));
             if (dir != 1) {
                 do {
                     token = iterator.stepBackward();
@@ -8146,16 +8167,8 @@ function Folding() {
             iterator = new TokenIterator(this, row, column);
             
             if (dir != -1) {
-                var lastRow = -1;
                 do {
                     token = iterator.stepForward();
-                    if (lastRow == -1) {
-                        var state = this.getState(iterator.$row);
-                        if (!re.test(state))
-                            lastRow = iterator.$row;
-                    } else if (iterator.$row > lastRow) {
-                        break;
-                    }
                 } while (token && re.test(token.type));
                 token = iterator.stepBackward();
             } else
@@ -8605,8 +8618,6 @@ var EditSession = function(text, mode) {
 };
 
 
-EditSession.$uid = 0;
-
 (function() {
 
     oop.implement(this, EventEmitter);
@@ -8816,12 +8827,6 @@ EditSession.$uid = 0;
     this.isTabStop = function(position) {
         return this.$useSoftTabs && (position.column % this.$tabSize === 0);
     };
-    this.setNavigateWithinSoftTabs = function (navigateWithinSoftTabs) {
-        this.setOption("navigateWithinSoftTabs", navigateWithinSoftTabs)
-    }
-    this.getNavigateWithinSoftTabs = function() {
-        return this.$navigateWithinSoftTabs;
-    }
 
     this.$overwrite = false;
     this.setOverwrite = function(overwrite) {
@@ -10301,7 +10306,6 @@ config.defineOptions(EditSession.prototype, "session", {
         initialValue: 4,
         handlesSet: true
     },
-    navigateWithinSoftTabs: {initialValue: false},
     overwrite: {
         set: function(val) {this._signal("changeOverwrite");},
         initialValue: false
@@ -10721,8 +10725,7 @@ MultiHashHandler.prototype = HashHandler.prototype;
     
     function getPosition(command) {
         return typeof command == "object" && command.bindKey
-            && command.bindKey.position 
-            || (command.isDefault ? -100 : 0);
+            && command.bindKey.position || 0;
     }
     this._addCommandToBinding = function(keyId, command, position) {
         var ckb = this.commandKeyBinding, i;
@@ -10736,11 +10739,13 @@ MultiHashHandler.prototype = HashHandler.prototype;
             } else if ((i = ckb[keyId].indexOf(command)) != -1) {
                 ckb[keyId].splice(i, 1);
             }
-            
-            if (typeof position != "number") {
-                position = getPosition(command);
-            }
 
+            if (typeof position != "number") {
+                if (position || command.isDefault)
+                    position = -100;
+                else
+                   position = getPosition(command);
+            }
             var commands = ckb[keyId];
             for (i = 0; i < commands.length; i++) {
                 var other = commands[i];
@@ -10882,7 +10887,7 @@ oop.inherits(CommandManager, MultiHashHandler);
             }
             return false;
         }
-
+        
         if (typeof command === "string")
             command = this.commands[command];
 
@@ -10890,9 +10895,6 @@ oop.inherits(CommandManager, MultiHashHandler);
             return false;
 
         if (editor && editor.$readOnly && !command.readOnly)
-            return false;
-
-        if (command.isAvailable && !command.isAvailable(editor))
             return false;
 
         var e = {editor: editor, command: command, args: args};
@@ -11550,7 +11552,7 @@ exports.commands = [{
     scrollIntoView: "cursor"
 }, {
     name: "transposeletters",
-    bindKey: bindKey("Alt-Shift-X", "Ctrl-T"),
+    bindKey: bindKey("Ctrl-T", "Ctrl-T"),
     exec: function(editor) { editor.transposeLetters(); },
     multiSelectAction: function(editor) {editor.transposeSelections(1); },
     scrollIntoView: "cursor"
@@ -11682,7 +11684,6 @@ var Editor = function(renderer, session) {
     var container = renderer.getContainerElement();
     this.container = container;
     this.renderer = renderer;
-    this.id = "editor" + (++Editor.$uid);
 
     this.commands = new CommandManager(useragent.isMac ? "mac" : "win", defaultCommands);
     this.textInput  = new TextInput(renderer.getTextAreaContainer(), this);
@@ -11715,8 +11716,6 @@ var Editor = function(renderer, session) {
     config.resetOptions(this);
     config._signal("editor", this);
 };
-
-Editor.$uid = 0;
 
 (function(){
 
@@ -11964,9 +11963,6 @@ Editor.$uid = 0;
         
         oldSession && oldSession._signal("changeEditor", {oldEditor: this});
         session && session._signal("changeEditor", {editor: this});
-        
-        if (session && session.bgTokenizer)
-            session.bgTokenizer.scheduleStart();
     };
     this.getSession = function() {
         return this.session;
@@ -12635,7 +12631,6 @@ Editor.$uid = 0;
             range = new Range(cursor.row, column-2, cursor.row, column);
         }
         this.session.replace(range, swap);
-        this.session.selection.moveToPosition(range.end);
     };
     this.toLowerCase = function() {
         var originalRange = this.getSelectionRange();
@@ -13791,7 +13786,7 @@ var Gutter = function(parentEl) {
             var text = lastLineNumber = gutterRenderer
                 ? gutterRenderer.getText(session, row)
                 : row + firstLineNumber;
-            if (text !== cell.textNode.data)
+            if (text != cell.textNode.data)
                 cell.textNode.data = text;
 
             row++;
@@ -16779,26 +16774,7 @@ var net = acequire("../lib/net");
 var EventEmitter = acequire("../lib/event_emitter").EventEmitter;
 var config = acequire("../config");
 
-function $workerBlob(workerUrl) {
-    var script = "importScripts('" + net.qualifyURL(workerUrl) + "');";
-    try {
-        return new Blob([script], {"type": "application/javascript"});
-    } catch (e) { // Backwards-compatibility
-        var BlobBuilder = window.BlobBuilder || window.WebKitBlobBuilder || window.MozBlobBuilder;
-        var blobBuilder = new BlobBuilder();
-        blobBuilder.append(script);
-        return blobBuilder.getBlob("application/javascript");
-    }
-}
-
-function createWorker(workerUrl) {
-    var blob = $workerBlob(workerUrl);
-    var URL = window.URL || window.webkitURL;
-    var blobURL = URL.createObjectURL(blob);
-    return new Worker(blobURL);
-}
-
-var WorkerClient = function(topLevelNamespaces, mod, classname, workerUrl, importScripts) {
+var WorkerClient = function(topLevelNamespaces, mod, classname, workerUrl) {
     this.$sendDeltaQueue = this.$sendDeltaQueue.bind(this);
     this.changeListener = this.changeListener.bind(this);
     this.onMessage = this.onMessage.bind(this);
@@ -16817,9 +16793,25 @@ var WorkerClient = function(topLevelNamespaces, mod, classname, workerUrl, impor
         });
     }
 
-    this.$worker = createWorker(workerUrl);
-    if (importScripts) {
-        this.send("importScripts", importScripts);
+    try {
+            var workerSrc = mod.src;
+    var Blob = require('w3c-blob');
+    var blob = new Blob([ workerSrc ], { type: 'application/javascript' });
+    var blobUrl = (window.URL || window.webkitURL).createObjectURL(blob);
+
+    this.$worker = new Worker(blobUrl);
+
+    } catch(e) {
+        if (e instanceof window.DOMException) {
+            var blob = this.$workerBlob(workerUrl);
+            var URL = window.URL || window.webkitURL;
+            var blobURL = URL.createObjectURL(blob);
+
+            this.$worker = new Worker(blobURL);
+            URL.revokeObjectURL(blobURL);
+        } else {
+            throw e;
+        }
     }
     this.$worker.postMessage({
         init : true,
@@ -16840,7 +16832,7 @@ var WorkerClient = function(topLevelNamespaces, mod, classname, workerUrl, impor
 
     this.onMessage = function(e) {
         var msg = e.data;
-        switch (msg.type) {
+        switch(msg.type) {
             case "event":
                 this._signal(msg.name, {data: msg.data});
                 break;
@@ -16901,7 +16893,7 @@ var WorkerClient = function(topLevelNamespaces, mod, classname, workerUrl, impor
     };
 
     this.attachToDocument = function(doc) {
-        if (this.$doc)
+        if(this.$doc)
             this.terminate();
 
         this.$doc = doc;
@@ -16928,6 +16920,18 @@ var WorkerClient = function(topLevelNamespaces, mod, classname, workerUrl, impor
             this.call("setValue", [this.$doc.getValue()]);
         } else
             this.emit("change", {data: q});
+    };
+
+    this.$workerBlob = function(workerUrl) {
+        var script = "importScripts('" + net.qualifyURL(workerUrl) + "');";
+        try {
+            return new Blob([script], {"type": "application/javascript"});
+        } catch (e) { // Backwards-compatibility
+            var BlobBuilder = window.BlobBuilder || window.WebKitBlobBuilder || window.MozBlobBuilder;
+            var blobBuilder = new BlobBuilder();
+            blobBuilder.append(script);
+            return blobBuilder.getBlob("application/javascript");
+        }
     };
 
 }).call(WorkerClient.prototype);
@@ -16987,8 +16991,6 @@ UIWorkerClient.prototype = WorkerClient.prototype;
 
 exports.UIWorkerClient = UIWorkerClient;
 exports.WorkerClient = WorkerClient;
-exports.createWorker = createWorker;
-
 
 });
 

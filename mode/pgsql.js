@@ -363,15 +363,11 @@ var JsonHighlightRules = function() {
                 token : "constant.language.boolean",
                 regex : "(?:true|false)\\b"
             }, {
-                token : "text", // single quoted strings are not allowed
+                token : "invalid.illegal", // single quoted strings are not allowed
                 regex : "['](?:(?:\\\\.)|(?:[^'\\\\]))*?[']"
             }, {
-                token : "comment", // comments are not allowed, but who cares?
+                token : "invalid.illegal", // comments are not allowed
                 regex : "\\/\\/.*$"
-            }, {
-                token : "comment.start", // comments are not allowed, but who cares?
-                regex : "\\/\\*",
-                next  : "comment"
             }, {
                 token : "paren.lparen",
                 regex : "[[({]"
@@ -389,19 +385,15 @@ var JsonHighlightRules = function() {
                 regex : /\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|["\\\/bfnrt])/
             }, {
                 token : "string",
-                regex : '"|$',
+                regex : '[^"\\\\]+'
+            }, {
+                token : "string",
+                regex : '"',
                 next  : "start"
             }, {
-                defaultToken : "string"
-            }
-        ],
-        "comment" : [
-            {
-                token : "comment.end", // comments are not allowed, but who cares?
-                regex : "\\*\\/",
+                token : "string",
+                regex : "",
                 next  : "start"
-            }, {
-                defaultToken: "comment"
             }
         ]
     };
@@ -524,9 +516,6 @@ var JavaScriptHighlightRules = function(options) {
                 ],
                 regex : "(:)(\\s*)(function)(\\s*)(\\()",
                 next: "function_arguments"
-            }, {
-                token : "keyword",
-                regex : "from(?=\\s*('|\"))"
             }, {
                 token : "keyword",
                 regex : "(?:" + kwBeforeRe + ")\\b",
@@ -710,8 +699,8 @@ var JavaScriptHighlightRules = function(options) {
             }
         ]
     };
-
-
+    
+    
     if (!options || !options.noES6) {
         this.$rules.no_regex.unshift({
             regex: "[{}]", onMatch: function(val, state, stack) {
@@ -746,14 +735,14 @@ var JavaScriptHighlightRules = function(options) {
                 defaultToken: "string.quasi"
             }]
         });
-
+        
         if (!options || options.jsx != false)
             JSX.call(this);
     }
-
+    
     this.embedRules(DocCommentHighlightRules, "doc-",
         [ DocCommentHighlightRules.getEndRule("no_regex") ]);
-
+    
     this.normalizeRules();
 };
 
@@ -804,8 +793,8 @@ function JSX() {
         {defaultToken: "string"}
     ];
     this.$rules.jsxAttributes = [{
-        token : "meta.tag.punctuation.tag-close.xml",
-        regex : "/?>",
+        token : "meta.tag.punctuation.tag-close.xml", 
+        regex : "/?>", 
         onMatch : function(value, currentState, stack) {
             if (currentState == stack[0])
                 stack.shift();
@@ -820,7 +809,7 @@ function JSX() {
             return [{type: this.token, value: value}];
         },
         nextState: "jsx"
-    },
+    }, 
     jsxJsRule,
     comments("jsxAttributes"),
     {
