@@ -1394,7 +1394,6 @@ var Autocomplete = function() {
         this.editor.off("mousedown", this.mousedownListener);
         this.editor.off("mousewheel", this.mousewheelListener);
         this.changeTimer.cancel();
-        this.inCompletionFetching = false;
         this.hideDocTooltip();
 
         this.gatherCompletionsId += 1;
@@ -1419,12 +1418,9 @@ var Autocomplete = function() {
     };
 
     this.blurListener = function(e) {
-        if (e.relatedTarget && e.relatedTarget.nodeName == "A" && e.relatedTarget.href) {
-            window.open(e.relatedTarget.href, "_blank");
-        }
         var el = document.activeElement;
         var text = this.editor.textInput.getElement();
-        var fromTooltip = e.relatedTarget && e.relatedTarget == this.tooltipNode;
+        var fromTooltip = e.relatedTarget && this.tooltipNode && this.tooltipNode.contains(e.relatedTarget);
         var container = this.popup && this.popup.container;
         if (el != text && el.parentNode != container && !fromTooltip
             && el != this.tooltipNode && e.relatedTarget != text
@@ -1505,7 +1501,6 @@ var Autocomplete = function() {
         var session = editor.getSession();
         var pos = editor.getCursorPosition();
 
-        var line = session.getLine(pos.row);
         var prefix = util.getCompletionPrefix(editor);
 
         this.base = session.doc.createAnchor(pos.row, pos.column - prefix.length);
@@ -1513,16 +1508,12 @@ var Autocomplete = function() {
 
         var matches = [];
         var total = editor.completers.length;
-        var self = this;
         editor.completers.forEach(function(completer, i) {
-            self.inCompletionFetching = true;
             completer.getCompletions(editor, session, pos, prefix, function(err, results) {
                 if (!err && results)
                     matches = matches.concat(results);
-                var pos = editor.getCursorPosition();
-                var line = session.getLine(pos.row);
                 callback(null, {
-                    prefix: prefix,
+                    prefix: util.getCompletionPrefix(editor),
                     matches: matches,
                     finished: (--total === 0)
                 });
@@ -1553,22 +1544,12 @@ var Autocomplete = function() {
     };
 
     this.updateCompletions = function(keepPopupPosition) {
-         var updateFilter = function() {
+        if (keepPopupPosition && this.base && this.completions) {
             var pos = this.editor.getCursorPosition();
             var prefix = this.editor.session.getTextRange({start: this.base, end: pos});
             if (prefix == this.completions.filterText)
                 return;
             this.completions.setFilter(prefix);
-        }.bind(this);
-
-        if (this.inCompletionFetching) { //before filtering or refetching completions
-            updateFilter();
-            this.changeTimer.schedule(50);
-            return;
-        }
-
-        if (keepPopupPosition && this.base && this.completions) {
-            updateFilter();
             if (!this.completions.filtered.length)
                 return this.detach();
             if (this.completions.filtered.length == 1
@@ -1585,8 +1566,6 @@ var Autocomplete = function() {
                 return this.detach();
             }.bind(this);
 
-            this.inCompletionFetching = !results.finished;
-
             var prefix = results.prefix;
             var matches = results && results.matches;
 
@@ -1600,7 +1579,7 @@ var Autocomplete = function() {
             if (this.exactMatch)
                 this.completions.exactMatch = true;
 
-            this.completions.setFilter( prefix );
+            this.completions.setFilter(prefix);
             var filtered = this.completions.filtered;
             if (!filtered.length)
                 return detachIfFinished();
@@ -1647,6 +1626,7 @@ var Autocomplete = function() {
             this.tooltipNode.style.pointerEvents = "auto";
             this.tooltipNode.tabIndex = -1;
             this.tooltipNode.onblur = this.blurListener.bind(this);
+            this.tooltipNode.onclick = this.onTooltipClick.bind(this);
         }
 
         var tooltipNode = this.tooltipNode;
@@ -1683,6 +1663,18 @@ var Autocomplete = function() {
         if (el.parentNode)
             el.parentNode.removeChild(el);
     };
+
+    this.onTooltipClick = function(e) {
+        var a = e.target;
+        while (a && a != this.tooltipNode) {
+            if (a.nodeName == "A" && a.href) {
+                a.rel = "noreferrer";
+                a.target = "_blank";
+                break;
+            }
+            a = a.parentNode;
+        }
+    }
 
 }).call(Autocomplete.prototype);
 

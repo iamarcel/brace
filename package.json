@@ -1,11 +1,11 @@
 {
   "name": "brace",
-  "version": "0.12.0-dc",
+  "version": "0.13.0-dc",
   "description": "browserify compatible version of the ace editor.",
   "main": "index.js",
   "typings": "index.d.ts",
   "scripts": {
-    "update": "(cd build && node ./update && node ./update-ts)",
+    "update": "(cd build && node ./update)",
     "test": "browserify test/*.js > test/bundle.js --debug && opener test/index.html"
   },
   "repository": {
